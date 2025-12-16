@@ -75,9 +75,9 @@ fn bossbattle() {
             _ => (),
         }
 
-        print!("\nchoose to:\n1. (f)ight\n2. (b)lock\n3. (m)ercy\n");
+        print!("\nchoose to:\n- (f)ight\n- (b)lock\n- (m)ercy\n");
         if boss_mercy >= SPARE_THREATHSHOLD {
-            print!("\n4. (s)pare\n");
+            print!("\n- (s)pare\n");
         }
 
         let mut boss_dmg = rand::thread_rng().gen_range(boss_dmg_range.clone());
@@ -91,8 +91,6 @@ fn bossbattle() {
                 .read_line(&mut response)
                 .expect("failed");
             response = response.trim().to_string();
-
-            print!("\n");
 
             match response.as_str() {
                 "f" | "fight" => {
@@ -163,7 +161,7 @@ fn bossbattle() {
 
                 "exit" => return (),
 
-                _ => (),
+                _ => continue,
             }
         }
 
