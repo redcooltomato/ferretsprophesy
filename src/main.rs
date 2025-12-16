@@ -1,6 +1,5 @@
 use std::cmp::Ordering;
 use std::cmp;
-use std::cmp::min;
 
 use std::io;
 use std::{thread, time};
@@ -80,12 +79,10 @@ fn bossbattle() {
         if boss_mercy >= SPARE_THREATHSHOLD {
             print!("\n4. (s)pare\n");
         }
-        let mut response = String::new();
-
 
         let mut boss_dmg = rand::thread_rng().gen_range(boss_dmg_range.clone());
-        let mut player_dmg = rand::thread_rng().gen_range(player_dmg_range.clone());
-        let mut player_heal = rand::thread_rng().gen_range(10..=30);
+        let player_dmg = rand::thread_rng().gen_range(player_dmg_range.clone());
+        let player_heal = rand::thread_rng().gen_range(10..=30);
 
         loop {
             let mut response = String::new();
@@ -125,7 +122,7 @@ fn bossbattle() {
                     println!("pup feels sorry for annoying you");
                     boss_mercy += 5;
 
-                    if (player_hp < 50) {
+                    if player_hp < 50 {
                         println!("you regained some of your powers");
                         player_hp = cmp::min(50, player_hp + player_heal);
                     }
@@ -178,7 +175,7 @@ fn bossbattle() {
 
         boss_dmg -= block_buff;
 
-        match (turn % 3) {
+        match turn % 3 {
             0 => print!("\npup swings its tail, dealing blasting {} damage!\n", boss_dmg),
             1 => print!("\nin a short swirly spin dog confronting you spined so fast, it created hurricane which lowered your health points by {}!\n", boss_dmg),
             2 => print!("\nlittle chomp out of your leg hurt a bit, dealing {} damage!\n", boss_dmg),
