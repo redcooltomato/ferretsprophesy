@@ -6,7 +6,7 @@ use std::{thread, time};
 
 use rand::Rng;
 
-pub fn guessing_game() {
+pub fn _guessing_game() {
     println!("number guessing game! guess the number!");
 
     let secret_number = rand::thread_rng().gen_range(1..=100);
@@ -37,7 +37,7 @@ pub fn guessing_game() {
 }
 
 
-pub fn bossbattle() {
+pub fn _boss_battle() {
     println!("mischievous pup blocks the way!");
     thread::sleep(time::Duration::from_secs(1));
 
