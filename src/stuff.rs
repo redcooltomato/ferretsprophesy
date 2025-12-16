@@ -210,3 +210,14 @@ pub fn _boss_battle() {
         turn += 1;
     }
 }
+
+
+pub fn _fib_nomemo(n: i32) -> i32 {
+    match n {
+        0 => 0,
+        1 | 2 => 1,
+        _ => {
+            _fib_nomemo(n - 1) + _fib_nomemo(n - 2)
+        },
+    }
+}
