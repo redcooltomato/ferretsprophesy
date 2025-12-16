@@ -37,7 +37,7 @@ fn _guessing_game() {
 }
 
 
-fn bossbattle() {
+fn _bossbattle() {
     println!("mischievous pup blocks the way!");
     thread::sleep(time::Duration::from_secs(1));
 
@@ -212,5 +212,5 @@ fn bossbattle() {
 }
 
 fn main() {
-    bossbattle();
+    _bossbattle();
 }
