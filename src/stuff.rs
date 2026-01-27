@@ -150,7 +150,7 @@ pub fn _boss_battle() {
                         thread::sleep(time::Duration::from_secs(1));
                         println!("you won by sparing!");
                         thread::sleep(time::Duration::from_secs(3));
-                        break;
+                        return ();
                     } else {
                         println!("but it refused.");
                     }
@@ -163,10 +163,6 @@ pub fn _boss_battle() {
 
                 _ => continue,
             }
-        }
-
-        if boss_mercy >= SPARE_THREATHSHOLD {
-            break;
         }
 
         thread::sleep(time::Duration::from_secs(1));
