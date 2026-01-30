@@ -1,9 +1,6 @@
-/* use std::io; */
-use crate::cross::{crossrender, genmap};
+use crate::snek::{crossrender, genmap};
 
-mod stuff;
-mod cross;
-
+mod snek;
 
 
 fn main() {
