@@ -13,7 +13,7 @@ use rand::Rng;
 
 
 const INITIAL_SNEK_LEN: u16 = 3;
-const INPUT_WAIT_TIME: u64 = 1000;
+const INPUT_WAIT_TIME: u64 = 600;
 
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -40,15 +40,15 @@ impl Cell {
 #[derive(Debug, Clone)]
 pub struct MapTemplate {
     map: Vec<Vec<Cell>>,
-    headx: u16,
-    heady: u16,
+    headx: usize,
+    heady: usize,
 }
 
 
 
 pub fn crossrender(info: &mut MapTemplate) -> Result<()> {
     let MapTemplate { map, headx, heady } = info;
-    let (h, w) : (u16, u16) = (map.len() as u16, map[0].len() as u16);
+    let (h, w) : (usize, usize) = (map.len(), map[0].len());
     let mut sneklen = INITIAL_SNEK_LEN;
 
     let mut prev_key: KeyCode = KeyCode::Up;
@@ -66,14 +66,15 @@ pub fn crossrender(info: &mut MapTemplate) -> Result<()> {
         for row in 0..h {
             for cell in 0..w {
                 stdout
-                    .queue(cursor::MoveTo(row * 2, cell * 2))?
-                    .queue(style::PrintStyledContent(get_cell_styled(&map[row as usize][cell as usize], &sneklen)))?;
+                    .queue(cursor::MoveTo((row * 2) as u16, (cell * 2) as u16))?
+                    .queue(style::PrintStyledContent(get_cell_styled(&map[row][cell], &sneklen)))?;
 
                 if !just_eaten {
-                    map[row as usize][cell as usize].decrease_thouself();
+                    map[row][cell].decrease_thouself();
                 }
             }
         }
+        just_eaten = false;
 
         stdout.flush()?;
         
@@ -135,18 +136,18 @@ fn get_cell_styled(c: &Cell, sneklen: &u16) -> StyledContent<char> {
 }
 
 
-fn handlekey(key: KeyCode, map: &mut Vec<Vec<Cell>>, headx: &mut u16, heady: &mut u16, sneklen: &mut u16, just_eaten: &mut bool) {
+fn handlekey(key: KeyCode, map: &mut Vec<Vec<Cell>>, headx: &mut usize, heady: &mut usize, sneklen: &mut u16, just_eaten: &mut bool) {
     match key {
         KeyCode::Left => {
             if *headx > 1 {
                 *headx -= 1;
             } else {
-                *headx = (map.len() as u16) - 2;
+                *headx = map.len() - 2;
             }
         },
 
         KeyCode::Right => {
-            if *headx < (map.len() as u16) - 2 {
+            if *headx < map.len() - 2 {
                 *headx += 1;
             } else {
                 *headx = 1;
@@ -157,12 +158,12 @@ fn handlekey(key: KeyCode, map: &mut Vec<Vec<Cell>>, headx: &mut u16, heady: &mu
             if *heady > 1 {
                 *heady -= 1;
             } else {
-                *heady = (map[0].len() as u16) - 2;
+                *heady = map[0].len() - 2;
             }
         }
 
         KeyCode::Down => {
-            if *heady < (map[0].len() as u16) - 2 {
+            if *heady < map[0].len() - 2 {
                 *heady += 1;
             } else {
                 *heady = 1;
@@ -173,30 +174,49 @@ fn handlekey(key: KeyCode, map: &mut Vec<Vec<Cell>>, headx: &mut u16, heady: &mu
     }
 
     // assume _ arm is really unreachable()
-    if map[*headx as usize][*heady as usize] == Cell::AppleCell {
+    if map[*headx][*heady] == Cell::AppleCell {
         *just_eaten = true;
+        *sneklen += 1;
+        insert_apple(map);
     }
-    map[*headx as usize][*heady as usize] = Cell::SnekCell(*sneklen);
+
+    map[*headx][*heady] = Cell::SnekCell(*sneklen);
+}
+
+fn insert_apple(map: &mut Vec<Vec<Cell>>) {
+    let (h, w) : (usize, usize) = (map.len(), map[0].len());
+    let (mut ax, mut ay) : (usize, usize) = (rand::thread_rng().gen_range(2..((h))), 
+                                                 rand::thread_rng().gen_range(2..((w))));
+
+    while matches!(map[ax][ay], Cell::BorderCell | Cell::SnekCell(_)) {
+        (ax, ay) = (rand::thread_rng().gen_range(2..((h))), rand::thread_rng().gen_range(2..((w))));
+    }
+
+    map[ax][ay] = Cell::AppleCell;
 }
 
 
 pub fn genmap(h: u16, w: u16) -> MapTemplate {
-    let mut map: Vec<Vec<Cell>> = vec![vec![Cell::EmptyCell; (w + 2) as usize]; (h + 2) as usize];
+    let h = h as usize;
+    let w = w as usize;
+    let mut map: Vec<Vec<Cell>> = vec![vec![Cell::EmptyCell; w + 2]; h + 2];
 
     for row in 0..(h + 2) {
         if row == 0 || row == h + 1 {
             for cell in 0..(w + 2) {
-                map[row as usize][cell as usize] = Cell::BorderCell;
+                map[row][cell] = Cell::BorderCell;
             }
         } else {
-            map[row as usize][0] = Cell::BorderCell;
-            map[row as usize][(w + 1) as usize] = Cell::BorderCell;
+            map[row][0] = Cell::BorderCell;
+            map[row][w + 1] = Cell::BorderCell;
         }
     }
 
-    let (headx, heady) : (u16, u16) = (rand::thread_rng().gen_range(2..((h))), 
+    let (headx, heady) : (usize, usize) = (rand::thread_rng().gen_range(2..((h))), 
                                                  rand::thread_rng().gen_range(2..((w))));
-    map[headx as usize][heady as usize] = Cell::SnekCell(INITIAL_SNEK_LEN);
+    map[headx][heady] = Cell::SnekCell(INITIAL_SNEK_LEN);
+
+    insert_apple(&mut map);
 
     let res = MapTemplate {
         map: map,
