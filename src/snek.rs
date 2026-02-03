@@ -1,16 +1,21 @@
 use crossterm::{
     QueueableCommand, cursor, 
     event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, poll, read}, 
-    style::{self, Print, StyledContent, Stylize}, terminal::{self, Clear, ClearType}
+    style::{self, Print, StyledContent, Stylize}, terminal::{self, Clear, ClearType},
 };
 use std::{
-    io::{Result, Write, stdout}, 
-    thread, 
+    io::{Result, Write, stdout, BufReader}, 
     time::{self, Duration, SystemTime}, 
-    cmp
+    cmp,
+    fs::File,
+    thread,
 };
 use rand::Rng;
+use rodio::{Decoder, OutputStream, mixer, source::Source};
 
+
+const MUSIC_MAIN: &'static str = "worm-shaped_snake.mp3"; // todo un-hardcode
+const MUSIC_MAIN_DUR: Duration = Duration::from_secs(36); // todo un-hardcode
 
 const INITIAL_SNEK_LEN: u16 = 3;
 const INPUT_WAIT_TIME: u64 = 600;
@@ -47,6 +52,7 @@ pub struct MapTemplate {
 
 
 pub fn crossrender(info: &mut MapTemplate) -> Result<()> {
+    play_music();
     let MapTemplate { map, headx, heady } = info;
     let (h, w) : (usize, usize) = (map.len(), map[0].len());
     let mut sneklen = INITIAL_SNEK_LEN;
@@ -58,10 +64,11 @@ pub fn crossrender(info: &mut MapTemplate) -> Result<()> {
 
     terminal::enable_raw_mode()?;
     let mut stdout = stdout();
+    stdout.queue(terminal::Clear(ClearType::All))?
+          .queue(crossterm::cursor::Hide)?;
 
 
     'main_loop: loop {
-        stdout.queue(terminal::Clear(ClearType::All))?;
 
         for row in 0..h {
             for cell in 0..w {
@@ -188,7 +195,7 @@ fn insert_apple(map: &mut Vec<Vec<Cell>>) {
     let (mut ax, mut ay) : (usize, usize) = (rand::thread_rng().gen_range(2..((h))), 
                                                  rand::thread_rng().gen_range(2..((w))));
 
-    while matches!(map[ax][ay], Cell::BorderCell | Cell::SnekCell(_)) {
+    while matches!(map[ax][ay], Cell::BorderCell | Cell::SnekCell(_) | Cell::AppleCell) {
         (ax, ay) = (rand::thread_rng().gen_range(2..((h))), rand::thread_rng().gen_range(2..((w))));
     }
 
@@ -225,4 +232,16 @@ pub fn genmap(h: u16, w: u16) -> MapTemplate {
     };
 
     res
+}
+
+fn play_music() {
+    let stream_handle = rodio::OutputStreamBuilder::open_default_stream().expect("open default audio stream");
+    let file = BufReader::new(File::open(MUSIC_MAIN).unwrap());
+    thread::spawn(move || {
+        let sink = rodio::play(&stream_handle.mixer(), file).unwrap();
+        loop {
+            thread::sleep(MUSIC_MAIN_DUR);
+            sink.play();
+        }
+    });
 }
