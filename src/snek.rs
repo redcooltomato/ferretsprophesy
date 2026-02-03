@@ -1,7 +1,7 @@
 use crossterm::{
     QueueableCommand, cursor, 
-    event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, poll, read}, 
-    style::{self, Print, StyledContent, Stylize}, terminal::{self, Clear, ClearType},
+    event::{self, Event, KeyCode, KeyEventKind, poll}, 
+    style::{self, StyledContent, Stylize}, terminal::{self, ClearType},
 };
 use std::{
     io::{Result, Write, stdout, BufReader}, 
@@ -11,7 +11,7 @@ use std::{
     thread,
 };
 use rand::Rng;
-use rodio::{Decoder, OutputStream, mixer, source::Source};
+use rodio::{OutputStream, Sink};
 
 
 const MUSIC_MAIN: &'static str = "worm-shaped_snake.mp3"; // todo un-hardcode
@@ -235,10 +235,10 @@ pub fn genmap(h: u16, w: u16) -> MapTemplate {
 }
 
 fn play_music() {
-    let stream_handle = rodio::OutputStreamBuilder::open_default_stream().expect("open default audio stream");
-    let file = BufReader::new(File::open(MUSIC_MAIN).unwrap());
+    let stream_handle: OutputStream = rodio::OutputStreamBuilder::open_default_stream().expect("open default audio stream");
+    let file: BufReader<File> = BufReader::new(File::open(MUSIC_MAIN).unwrap());
     thread::spawn(move || {
-        let sink = rodio::play(&stream_handle.mixer(), file).unwrap();
+        let sink: Sink = rodio::play(&stream_handle.mixer(), file).unwrap();
         loop {
             thread::sleep(MUSIC_MAIN_DUR);
             sink.play();
