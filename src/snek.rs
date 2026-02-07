@@ -12,10 +12,10 @@ use std::{
 };
 use rand::Rng;
 use rodio::{OutputStream, Sink};
+use mp3_duration;
 
 
 const MUSIC_MAIN: &'static str = "worm-shaped_snake.mp3"; // todo un-hardcode
-const MUSIC_MAIN_DUR: Duration = Duration::from_secs(36); // todo un-hardcode
 
 const INITIAL_SNEK_LEN: u16 = 3;
 const INPUT_WAIT_TIME: u64 = 600;
@@ -64,7 +64,8 @@ pub fn crossrender(info: &mut MapTemplate) -> Result<()> {
     terminal::enable_raw_mode()?;
     let mut stdout = stdout();
     stdout.queue(terminal::Clear(ClearType::All))?
-          .queue(crossterm::cursor::Hide)?;
+          .queue(crossterm::cursor::Hide)?
+          .queue(crossterm::cursor::DisableBlinking)?;
 
 
     'main_loop: loop {
@@ -72,8 +73,8 @@ pub fn crossrender(info: &mut MapTemplate) -> Result<()> {
         for row in 0..h {
             for cell in 0..w {
                 stdout
-                    /* .queue(cursor::MoveTo((row) as u16, (cell) as u16))? */
-                    .queue(cursor::MoveTo((row * 2) as u16, (cell * 2) as u16))?
+                    .queue(cursor::MoveTo((row) as u16, (cell) as u16))?
+                    /* .queue(cursor::MoveTo((row * 2) as u16, (cell * 2) as u16))? */
                     .queue(style::PrintStyledContent(get_cell_styled(&map[row][cell], &sneklen)))?;
 
                 map[row][cell].decrease_thouself();
@@ -84,7 +85,7 @@ pub fn crossrender(info: &mut MapTemplate) -> Result<()> {
         
         loop {
             now = SystemTime::now();
-
+            
             if poll(time::Duration::from_millis(INPUT_WAIT_TIME))? {
                 if let Event::Key(key_event) = event::read()? {
                     if key_event.kind == KeyEventKind::Release {
@@ -129,7 +130,7 @@ pub fn crossrender(info: &mut MapTemplate) -> Result<()> {
 
 fn get_cell_styled(c: &Cell, sneklen: &u16) -> StyledContent<char> {
     match c {
-        Cell::BorderCell => '█'.black(),
+        Cell::BorderCell => '█'.dark_blue(),
         Cell::SnekCell(len) => {
             if *len == *sneklen { '█'.white() }
             else { '█'.green() }
@@ -238,12 +239,13 @@ pub fn genmap(h: u16, w: u16) -> MapTemplate {
 fn play_music() {
     let stream_handle: OutputStream = rodio::OutputStreamBuilder::open_default_stream().expect("open default audio stream");
     thread::spawn(move || {
+        let music_dur: Duration = mp3_duration::from_path(MUSIC_MAIN).expect("duration calc err");
         let mut file: BufReader<File>;
         let mut _sink: Sink;
         loop {
             file = BufReader::new(File::open(MUSIC_MAIN).unwrap());
             _sink = rodio::play(&stream_handle.mixer(), file).unwrap();
-            thread::sleep(MUSIC_MAIN_DUR);
+            thread::sleep(music_dur);
         }
     });
 }
