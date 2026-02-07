@@ -58,7 +58,6 @@ pub fn crossrender(info: &mut MapTemplate) -> Result<()> {
     let mut sneklen = INITIAL_SNEK_LEN;
 
     let mut prev_key: KeyCode = KeyCode::Up;
-    let mut just_eaten: bool = false;
     let mut now: SystemTime;
     let mut wait: Duration;
 
@@ -73,15 +72,13 @@ pub fn crossrender(info: &mut MapTemplate) -> Result<()> {
         for row in 0..h {
             for cell in 0..w {
                 stdout
+                    /* .queue(cursor::MoveTo((row) as u16, (cell) as u16))? */
                     .queue(cursor::MoveTo((row * 2) as u16, (cell * 2) as u16))?
                     .queue(style::PrintStyledContent(get_cell_styled(&map[row][cell], &sneklen)))?;
 
-                if !just_eaten {
-                    map[row][cell].decrease_thouself();
-                }
+                map[row][cell].decrease_thouself();
             }
         }
-        just_eaten = false;
 
         stdout.flush()?;
         
@@ -97,19 +94,19 @@ pub fn crossrender(info: &mut MapTemplate) -> Result<()> {
                         KeyCode::Char('q') => break 'main_loop,
 
                         KeyCode::Left | KeyCode::Right | KeyCode::Up | KeyCode::Down 
-                            => { handlekey(key_event.code, map, headx, heady, &mut sneklen, &mut just_eaten); prev_key = key_event.code; },
+                            => { handlekey(key_event.code, map, headx, heady, &mut sneklen); prev_key = key_event.code; },
 
-                        _ => handlekey(prev_key, map, headx, heady, &mut sneklen, &mut just_eaten),
+                        _ => handlekey(prev_key, map, headx, heady, &mut sneklen),
                     }
                 } 
                 
                 else {
-                    handlekey(prev_key, map, headx, heady, &mut sneklen, &mut just_eaten);
+                    handlekey(prev_key, map, headx, heady, &mut sneklen);
                 }
             } 
             
             else {
-                handlekey(prev_key, map, headx, heady, &mut sneklen, &mut just_eaten);
+                handlekey(prev_key, map, headx, heady, &mut sneklen);
             }
             
             wait = Duration::from_millis(INPUT_WAIT_TIME) - cmp::min(SystemTime::now().duration_since(now).expect("timer handling err"), Duration::from_millis(INPUT_WAIT_TIME));
@@ -143,7 +140,7 @@ fn get_cell_styled(c: &Cell, sneklen: &u16) -> StyledContent<char> {
 }
 
 
-fn handlekey(key: KeyCode, map: &mut Vec<Vec<Cell>>, headx: &mut usize, heady: &mut usize, sneklen: &mut u16, just_eaten: &mut bool) {
+fn handlekey(key: KeyCode, map: &mut Vec<Vec<Cell>>, headx: &mut usize, heady: &mut usize, sneklen: &mut u16) {
     match key {
         KeyCode::Left => {
             if *headx > 1 {
@@ -181,10 +178,14 @@ fn handlekey(key: KeyCode, map: &mut Vec<Vec<Cell>>, headx: &mut usize, heady: &
     }
 
     // assume _ arm is really unreachable()
-    if map[*headx][*heady] == Cell::AppleCell {
-        *just_eaten = true;
-        *sneklen += 1;
-        insert_apple(map);
+    match map[*headx][*heady] {
+        Cell::AppleCell => {
+            *sneklen += 1;
+            insert_apple(map);
+        },
+        Cell::BorderCell => (),
+        Cell::SnekCell(_l) => (),
+        _ => (),
     }
 
     map[*headx][*heady] = Cell::SnekCell(*sneklen);
@@ -236,12 +237,13 @@ pub fn genmap(h: u16, w: u16) -> MapTemplate {
 
 fn play_music() {
     let stream_handle: OutputStream = rodio::OutputStreamBuilder::open_default_stream().expect("open default audio stream");
-    let file: BufReader<File> = BufReader::new(File::open(MUSIC_MAIN).unwrap());
     thread::spawn(move || {
-        let sink: Sink = rodio::play(&stream_handle.mixer(), file).unwrap();
+        let mut file: BufReader<File>;
+        let mut _sink: Sink;
         loop {
+            file = BufReader::new(File::open(MUSIC_MAIN).unwrap());
+            _sink = rodio::play(&stream_handle.mixer(), file).unwrap();
             thread::sleep(MUSIC_MAIN_DUR);
-            sink.play();
         }
     });
 }

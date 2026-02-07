@@ -5,5 +5,5 @@ mod snek;
 
 fn main() {
     let mut m = genmap(10, 10);
-    crossrender(&mut m).expect("crossrender left with a error");
+    crossrender(&mut m).expect("game left with a error");
 }
