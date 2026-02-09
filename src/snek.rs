@@ -15,7 +15,8 @@ use rodio::{OutputStream, Sink};
 use mp3_duration;
 
 
-const MUSIC_MAIN: &'static str = "worm-shaped_snake.mp3"; // todo un-hardcode
+const MUSIC_MAIN: &'static str = "src/ass/worm-shaped_snake.mp3"; // dont even try unhardcoding -- include_bytes veteran
+                                                          // this veteran had sound turned off while unhardcoding -- listening veteran
 
 const INITIAL_SNEK_LEN: u16 = 3;
 const INPUT_WAIT_TIME: u64 = 600;
