@@ -4,11 +4,7 @@ use crossterm::{
     style::{self, StyledContent, Stylize}, terminal::{self, ClearType},
 };
 use std::{
-    io::{Result, Write, stdout, BufReader}, 
-    time::{self, Duration, SystemTime}, 
-    cmp,
-    fs::File,
-    thread,
+    cmp, fs::File, io::{BufReader, Result, Stdout, Write, stdout}, thread, time::{self, Duration, SystemTime}
 };
 use rand::Rng;
 use rodio::{OutputStream, Sink};
@@ -16,10 +12,10 @@ use mp3_duration;
 
 
 const MUSIC_MAIN: &'static str = "src/ass/worm-shaped_snake.mp3"; // dont even try unhardcoding -- include_bytes veteran
-                                                          // this veteran had sound turned off while unhardcoding -- listening veteran
+                                                          // this veteran had sound turned off while doing that -- listening veteran
 
 const INITIAL_SNEK_LEN: u16 = 3;
-const INPUT_WAIT_TIME: u64 = 600;
+const INPUT_WAIT_TIME: u64 = 500;
 
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -71,18 +67,7 @@ pub fn crossrender(info: &mut MapTemplate) -> Result<()> {
 
     'main_loop: loop {
 
-        for row in 0..h {
-            for cell in 0..w {
-                stdout
-                    .queue(cursor::MoveTo((row) as u16, (cell) as u16))?
-                    /* .queue(cursor::MoveTo((row * 2) as u16, (cell * 2) as u16))? */
-                    .queue(style::PrintStyledContent(get_cell_styled(&map[row][cell], &sneklen)))?;
-
-                map[row][cell].decrease_thouself();
-            }
-        }
-
-        stdout.flush()?;
+        draw(h, w, map, &mut stdout, &mut sneklen)?;
         
         loop {
             now = SystemTime::now();
@@ -95,20 +80,16 @@ pub fn crossrender(info: &mut MapTemplate) -> Result<()> {
                     match key_event.code {
                         KeyCode::Char('q') => break 'main_loop,
 
-                        KeyCode::Left | KeyCode::Right | KeyCode::Up | KeyCode::Down 
-                            => { handlekey(key_event.code, map, headx, heady, &mut sneklen); prev_key = key_event.code; },
+                        KeyCode::Left | KeyCode::Right | KeyCode::Up | KeyCode::Down
+                            => { prev_key = key_event.code; },
 
-                        _ => handlekey(prev_key, map, headx, heady, &mut sneklen),
+                        _ => (),
                     }
-                } 
-                
-                else {
-                    handlekey(prev_key, map, headx, heady, &mut sneklen);
                 }
-            } 
-            
-            else {
-                handlekey(prev_key, map, headx, heady, &mut sneklen);
+            }
+
+            if handlekey(prev_key, map, headx, heady, &mut sneklen) == false { 
+                break 'main_loop; 
             }
             
             wait = Duration::from_millis(INPUT_WAIT_TIME) - cmp::min(SystemTime::now().duration_since(now).expect("timer handling err"), Duration::from_millis(INPUT_WAIT_TIME));
@@ -118,6 +99,7 @@ pub fn crossrender(info: &mut MapTemplate) -> Result<()> {
         }
     }
 
+    lose(&mut stdout, h, w);
 
     stdout.queue(terminal::Clear(ClearType::All))?;
     stdout.queue(cursor::MoveTo(0, 0))?;
@@ -128,6 +110,25 @@ pub fn crossrender(info: &mut MapTemplate) -> Result<()> {
 }
 
 
+fn draw(h: usize, w: usize, map: &mut Vec<Vec<Cell>>, stdout: &mut Stdout, sneklen: &mut u16) -> Result<()> {
+    for row in 0..h {
+        for cell in 0..w {
+            stdout
+                .queue(cursor::MoveTo((row) as u16, (cell) as u16))?
+                /* .queue(cursor::MoveTo((row * 2) as u16, (cell * 2) as u16))? */
+                .queue(style::PrintStyledContent(get_cell_styled(&map[row][cell], &sneklen)))?;
+
+            map[row][cell].decrease_thouself();
+        }
+    }
+
+    stdout.flush()?;
+    Ok(())
+}
+
+fn lose(stdout: &mut Stdout, h: usize, w: usize) { // i will assume that map is large enough to fit this
+    ()
+}
 
 fn get_cell_styled(c: &Cell, sneklen: &u16) -> StyledContent<char> {
     match c {
@@ -142,55 +143,42 @@ fn get_cell_styled(c: &Cell, sneklen: &u16) -> StyledContent<char> {
 }
 
 
-fn handlekey(key: KeyCode, map: &mut Vec<Vec<Cell>>, headx: &mut usize, heady: &mut usize, sneklen: &mut u16) {
+fn handlekey(key: KeyCode, map: &mut Vec<Vec<Cell>>, headx: &mut usize, heady: &mut usize, sneklen: &mut u16) -> bool {
     match key {
         KeyCode::Left => {
-            if *headx > 1 {
-                *headx -= 1;
-            } else {
-                *headx = map.len() - 2;
-            }
+            *headx -= 1;
         },
 
         KeyCode::Right => {
-            if *headx < map.len() - 2 {
-                *headx += 1;
-            } else {
-                *headx = 1;
-            }
+            *headx += 1;
         }
 
         KeyCode::Up => {
-            if *heady > 1 {
-                *heady -= 1;
-            } else {
-                *heady = map[0].len() - 2;
-            }
+            *heady -= 1;
         }
 
         KeyCode::Down => {
-            if *heady < map[0].len() - 2 {
-                *heady += 1;
-            } else {
-                *heady = 1;
-            }
+            *heady += 1;
         }
 
         _ => unreachable!(),
     }
 
     // assume _ arm is really unreachable()
-    match map[*headx][*heady] {
+    let res: bool = match map[*headx][*heady] {
         Cell::AppleCell => {
             *sneklen += 1;
             insert_apple(map);
+            true
         },
-        Cell::BorderCell => (),
-        Cell::SnekCell(_l) => (),
-        _ => (),
-    }
+        Cell::BorderCell => false,
+        Cell::SnekCell(_l) => false,
+        _ => true,
+    };
 
     map[*headx][*heady] = Cell::SnekCell(*sneklen);
+
+    res
 }
 
 fn insert_apple(map: &mut Vec<Vec<Cell>>) {
@@ -207,8 +195,9 @@ fn insert_apple(map: &mut Vec<Vec<Cell>>) {
 
 
 pub fn genmap(h: u16, w: u16) -> MapTemplate {
-    let h = h as usize;
-    let w = w as usize;
+    let (w, h) = (h as usize, w as usize);
+    // yeah i messed up the order somewhere so now they are reversed
+
     let mut map: Vec<Vec<Cell>> = vec![vec![Cell::EmptyCell; w + 2]; h + 2];
 
     for row in 0..(h + 2) {
