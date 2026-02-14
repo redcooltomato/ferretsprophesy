@@ -55,7 +55,7 @@ pub fn crossrender(info: &mut MapTemplate) -> Result<()> {
     let mut sneklen = INITIAL_SNEK_LEN;
 
     let mut prev_key: KeyCode = KeyCode::Up;
-    let mut now: SystemTime;
+    let (mut now, mut inp_wait_dur) : (SystemTime, Duration);
     let mut wait: Duration;
 
     terminal::enable_raw_mode()?;
@@ -68,15 +68,24 @@ pub fn crossrender(info: &mut MapTemplate) -> Result<()> {
     'main_loop: loop {
 
         draw(h, w, map, &mut stdout, &mut sneklen)?;
-        
+
+        inp_wait_dur = Duration::from_millis(INPUT_WAIT_TIME);
+
         loop {
             now = SystemTime::now();
-            
-            if poll(time::Duration::from_millis(INPUT_WAIT_TIME))? {
+
+            if poll(inp_wait_dur)? {
+                /* println!("{}", inp_wait_dur.as_millis()); */
                 if let Event::Key(key_event) = event::read()? {
                     if key_event.kind == KeyEventKind::Release {
                         continue;
                     }
+
+                    if key_event.code == prev_key {
+                        inp_wait_dur = Duration::from_millis(INPUT_WAIT_TIME) - SystemTime::now().duration_since(now).expect("clockshit in duplicate key check");
+                        continue;
+                    }
+
                     match key_event.code {
                         KeyCode::Char('q') => break 'main_loop,
 
@@ -89,7 +98,7 @@ pub fn crossrender(info: &mut MapTemplate) -> Result<()> {
             }
 
             if handlekey(prev_key, map, headx, heady, &mut sneklen) == false { 
-                break 'main_loop; 
+                break 'main_loop;
             }
             
             wait = Duration::from_millis(INPUT_WAIT_TIME) - cmp::min(SystemTime::now().duration_since(now).expect("timer handling err"), Duration::from_millis(INPUT_WAIT_TIME));
