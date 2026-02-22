@@ -1,10 +1,14 @@
 use crossterm::{
     QueueableCommand, cursor, 
     event::{self, Event, KeyCode, KeyEventKind, poll}, 
-    style::{self, StyledContent, Stylize}, terminal::{self, ClearType},
+    style::{self, Print, StyledContent, Stylize}, 
+    terminal::{self, ClearType},
 };
 use std::{
-    cmp, fs::File, io::{BufReader, Result, Stdout, Write, stdout}, thread, time::{self, Duration, SystemTime}
+    cmp, fs::File, thread,
+    io::{BufReader, Result, Stdout, Write, stdout}, 
+    sync::{Arc, atomic::{self, AtomicBool}},
+    time::{Duration, SystemTime}
 };
 use rand::Rng;
 use rodio::{OutputStream, Sink};
@@ -16,6 +20,7 @@ const MUSIC_MAIN: &'static str = "src/ass/worm-shaped_snake.mp3"; // dont even t
 
 const INITIAL_SNEK_LEN: u16 = 3;
 const INPUT_WAIT_TIME: u64 = 500;
+const MUSIC_FLAG_CHECK_TIME: u64 = 100;
 
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -46,17 +51,26 @@ pub struct MapTemplate {
     heady: usize,
 }
 
-
+fn get_antag_key(key: KeyCode) -> KeyCode {
+    match key {
+        KeyCode::Up => KeyCode::Down,
+        KeyCode::Down => KeyCode::Up,
+        KeyCode::Left => KeyCode::Right,
+        KeyCode::Right => KeyCode::Left,
+        _ => key,
+    }
+}
 
 pub fn crossrender(info: &mut MapTemplate) -> Result<()> {
-    play_music();
     let MapTemplate { map, headx, heady } = info;
     let (h, w) : (usize, usize) = (map.len(), map[0].len());
     let mut sneklen = INITIAL_SNEK_LEN;
 
     let mut prev_key: KeyCode = KeyCode::Up;
-    let mut now: SystemTime;
-    let mut wait: Duration;
+    let (mut now, mut wait) : (SystemTime, Duration);
+
+    let (music_thread, music_flag)
+      : (thread::JoinHandle<()>, Arc<AtomicBool>) = play_music(MUSIC_MAIN.to_string());
 
     terminal::enable_raw_mode()?;
     let mut stdout = stdout();
@@ -79,7 +93,7 @@ pub fn crossrender(info: &mut MapTemplate) -> Result<()> {
                         continue;
                     }
 
-                    if key_event.code == prev_key {
+                    if key_event.code == prev_key || key_event.code == get_antag_key(prev_key) {
                         continue;
                     }
 
@@ -105,7 +119,10 @@ pub fn crossrender(info: &mut MapTemplate) -> Result<()> {
         }
     }
 
-    lose(&mut stdout, h, w);
+
+    music_flag.store(true, atomic::Ordering::Relaxed);
+    music_thread.join().expect("music thread failed to join");
+    lose(&mut stdout, h, w)?;
 
     stdout.queue(terminal::Clear(ClearType::All))?;
     stdout.queue(cursor::MoveTo(0, 0))?;
@@ -132,8 +149,21 @@ fn draw(h: usize, w: usize, map: &mut Vec<Vec<Cell>>, stdout: &mut Stdout, snekl
     Ok(())
 }
 
-fn lose(stdout: &mut Stdout, h: usize, w: usize) { // i will assume that map is large enough to fit this
-    ()
+fn lose(stdout: &mut Stdout, h: usize, w: usize) -> Result<()> { // i will assume that map is large enough to fit this
+    let (h, w) : (u16, u16) = (h as u16, w as u16);
+    stdout.queue(terminal::Clear(ClearType::All))?;
+    stdout.flush()?;
+    
+
+    stdout.queue(cursor::MoveTo(w / 2 - 8, 0))?;
+
+    stdout.queue(Print("GAME OVER"))?;
+
+
+    stdout.flush()?;
+    thread::sleep(Duration::from_secs(5));
+
+    Ok(())
 }
 
 fn get_cell_styled(c: &Cell, sneklen: &u16) -> StyledContent<char> {
@@ -232,16 +262,36 @@ pub fn genmap(h: u16, w: u16) -> MapTemplate {
     res
 }
 
-fn play_music() {
+fn play_music(audio_path: String) -> (thread::JoinHandle<()>, Arc<AtomicBool>) { // yeah its owned
     let stream_handle: OutputStream = rodio::OutputStreamBuilder::open_default_stream().expect("open default audio stream");
-    thread::spawn(move || {
-        let music_dur: Duration = mp3_duration::from_path(MUSIC_MAIN).expect("duration calc err");
-        let mut file: BufReader<File>;
-        let mut _sink: Sink;
-        loop {
-            file = BufReader::new(File::open(MUSIC_MAIN).unwrap());
-            _sink = rodio::play(&stream_handle.mixer(), file).unwrap();
-            thread::sleep(music_dur);
+
+    let music_flag: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    let music_flag_clone = music_flag.clone();
+
+    let music_thread: thread::JoinHandle<()>= thread::spawn(move || {
+        let (music_dur, mut elapsed, music_check_interval) : (Duration, Duration, Duration) = 
+        (
+            mp3_duration::from_path(&audio_path).expect("duration calc err"), 
+            Duration::from_secs(0), 
+            Duration::from_millis(MUSIC_FLAG_CHECK_TIME)
+        );
+        
+        let (mut file, mut sink): (BufReader<File>, Sink);
+
+        'music_loop: loop {
+            file = BufReader::new(File::open(&audio_path).unwrap());
+            sink = rodio::play(&stream_handle.mixer(), file).unwrap();
+
+            elapsed = Duration::from_secs(0);
+            
+            while elapsed < music_dur {
+                thread::sleep(music_check_interval);
+                elapsed += music_check_interval;
+                if music_flag_clone.load(atomic::Ordering::Relaxed) {
+                    break 'music_loop;
+                }
+            }
         }
     });
+    return (music_thread, music_flag);
 }
